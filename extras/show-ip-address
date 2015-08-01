@@ -1,0 +1,30 @@
+#!/bin/sh
+
+get_ip_addresses() {
+    for net in /sys/class/net/*; do
+        ifname=$(basename "$net")
+        if [ "$ifname" != 'lo' ]; then
+            printf "%s" "$ifname: "
+            /sbin/ifconfig "$ifname" | grep 'inet addr' | awk '{ print $2 }' \
+                | awk -F: '{ print $2 }'
+        fi
+    done
+}
+
+if [ "$METHOD" = loopback ]; then
+    exit 0
+fi
+
+# Only run from ifup.
+if [ "$MODE" != start ]; then
+    exit 0
+fi
+
+if [ -f /etc/issue-original ]; then
+    cp /etc/issue-original /etc/issue
+else
+    cp /etc/issue /etc/issue-original
+fi
+
+get_ip_addresses >> /etc/issue
+echo "" >> /etc/issue
