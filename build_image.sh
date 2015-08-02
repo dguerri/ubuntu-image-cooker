@@ -1,8 +1,6 @@
 #!/bin/bash
 #
-# Copyright (c) 2015 Hewlett-Packard Development Company, L.P.
-#
-# Author: Davide Guerri <davide.guerri@gmail.com>
+# Copyright (c) 2015 Davide Guerri <davide.guerri@gmail.com>
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -22,28 +20,13 @@ set -u
 # -------------------
 components="main,restricted,universe,multiverse"
 extra_packages="openssh-server,acpid,sudo,cloud-init,cloud-initramfs-growroot"
-initial_size="8G"
+initial_size_gb="8"
 arch="amd64"
 target_disk="/dev/sda"
 nic_list=(eth0)
-nbd_device="/dev/nbd0"
+image_device="/dev/nbd0"
+debootstrap="debootstrap"
 # -------------------
-
-function log() {
-    local message="${1:-}"
-
-    echo -en "${GRN}[${BLU}$(date +'%d-%m-%Y')${NC} " >&29
-    echo -en "${BLU}$(date +'%H:%M:%S')${GRN}]${NC} " >&29
-    echo -e "${NC}$message" >&29
-}
-
-function error() {
-    local message="${1:-}"
-
-    echo -en "${GRN}[${BLU}$(date +'%d-%m-%Y')${NC} " >&29
-    echo -en "${BLU}$(date +'%H:%M:%S')${GRN}]${NC} " >&29
-    echo -e "${RED}$message${NC}" >&29
-}
 
 function usage() {
     echo -e "
@@ -84,30 +67,6 @@ Options:
 " >&29
 }
 
-function mount_stuff() {
-    mount "${nbd_device}p2" "$chroot_dir"
-    mount "${nbd_device}p1" "$chroot_dir/boot"
-    mount --bind /dev/ "$chroot_dir/dev"
-    mount -t proc none "$chroot_dir/proc"
-    mount -t sysfs none "$chroot_dir/sys"
-}
-
-function umount_stuff() {
-    set +e
-
-    lsof -t "$chroot_dir" | xargs kill
-    umount "$chroot_dir/dev" "$chroot_dir/proc" "$chroot_dir/sys" \
-        "$chroot_dir/boot" "$chroot_dir"
-}
-
-function chroot_stuff() {
-    qemu-nbd -c "$nbd_device" "$image_path"
-    mount_stuff
-    LANG=C chroot "$chroot_dir"
-    umount_stuff
-    qemu-nbd -d "${nbd_device}"
-}
-
 function build() {
     log "Strarting build of a ${YLW}$version${NC} box, arch ${YLW}$arch${NC}"
     log "Target disk: ${YLW}$target_disk${NC}"
@@ -115,34 +74,36 @@ function build() {
 
     mkdir -p "$build_dir"
 
-    log "Creating a ${YLW}$initial_size${NC} qcow2 image"
-    qemu-img create -f qcow2 "$image_path" "$initial_size"
+    log "Creating a ${YLW}${initial_size_gb}G${NC} qcow2 image"
+    rm -f "$image_path"
+    qemu-img create -f qcow2 "$image_path" "${initial_size_gb}G"
 
-    log "Initializing nbd device $nbd_device"
-    qemu-nbd -c "$nbd_device" "$image_path"
+    log "Initializing nbd device $image_device"
+    qemu-nbd -c "$image_device" "$image_path"
 
-    log "Partitioning $nbd_device"
-    sfdisk "$nbd_device" -D -uM <<EOF
+    log "Partitioning $image_device"
+    sfdisk "$image_device" -D -uM <<EOF
 ,512,83,*
 ,,83
 ;
 EOF
+    partprobe "$image_device"
 
     log "Creating filesystems"
-    mkfs.ext2 "${nbd_device}p1"
-    mkfs.ext4 "${nbd_device}p2"
+    mkfs.ext2 "${image_device}p1"
+    mkfs.ext4 "${image_device}p2"
 
     log "Mounting filesystems"
     mkdir -p "$chroot_dir"
-    mount "${nbd_device}p2" "$chroot_dir"
+    mount "${image_device}p2" "$chroot_dir"
 
     log "Executing debootstrap (this will take a while)"
-    debootstrap --verbose --arch "$arch" --components="$components" \
+    $debootstrap --verbose --arch "$arch" --components="$components" \
         --include="$extra_packages" "$version" "$chroot_dir" \
         http://archive.ubuntu.com/ubuntu/
 
     log "Preparing the chroot environment"
-    mount "${nbd_device}p1" "$chroot_dir/boot"
+    mount "${image_device}p1" "$chroot_dir/boot"
     mount --bind /dev/ "$chroot_dir/dev"
     mount -t proc none "$chroot_dir/proc"
     mount -t sysfs none "$chroot_dir/sys"
@@ -190,23 +151,65 @@ EOF
         apt-get install -y -q grub-pc linux-image-generic linux-firmware
     echo "GRUB_TERMINAL=console" >> "$chroot_dir/etc/default/grub"
 
-    log "Installing grub (${nbd_device})"
+    log "Installing grub (${image_device})"
     LANG=C DEBIAN_FRONTEND=noninteractive chroot "$chroot_dir" \
-        grub-install ${nbd_device}
+        grub-install ${image_device}
     LANG=C DEBIAN_FRONTEND=noninteractive chroot "$chroot_dir" update-grub
 
     log "Fixing grub configuration (using ${target_disk})"
-    sed -i "s|${nbd_device}p|${target_disk}|g" "$chroot_dir/boot/grub/grub.cfg"
+    sed -i "s|${image_device}p|${target_disk}|g" \
+        "$chroot_dir/boot/grub/grub.cfg"
+
+    log "Cleaning up the image"
+    LANG=C DEBIAN_FRONTEND=noninteractive chroot "$chroot_dir" apt-get clean
+    rm -f "$chroot_dir/etc/apt/sources.list.save" \
+        "$chroot_dir/etc/resolvconf/resolv.conf.d/original" \
+        "$chroot_dir/root/.bash_history" \
+        "$chroot_dir/etc/*-" \
+        "$chroot_dir/var/lib/urandom/random-seed" \
+        "$chroot_dir/etc/machine-id"
+    rm -rf "$chroot_dir/run/{.,}*" "$chroot_dir/tmp/{.,}*"
+    [ -L "$chroot_dir/var/lib/dbus/machine-id" ] || \
+        rm -f "$chroot_dir/var/lib/dbus/machine-id"
 
     log "******* your image is ready: '$image_path' *******"
+}
+
+function mount_stuff() {
+    mount "${image_device}p2" "$chroot_dir"
+    mount "${image_device}p1" "$chroot_dir/boot"
+    mount --bind /dev/ "$chroot_dir/dev"
+    mount -t proc none "$chroot_dir/proc"
+    mount -t sysfs none "$chroot_dir/sys"
+}
+
+function umount_stuff() {
+    set +e
+
+    lsof -t "$chroot_dir" | xargs kill >/dev/null 2>&1
+    umount "$chroot_dir/dev" "$chroot_dir/proc" "$chroot_dir/sys" \
+        "$chroot_dir/boot" "$chroot_dir"
+
+    set -e
+}
+
+function chroot_stuff() {
+    qemu-nbd -c "$image_device" "$image_path"
+    mount_stuff
+    log "Chrooting in a bash shell, <ctrl+d> to exit"
+    reset_redirections
+    LANG=C chroot "$chroot_dir"
+    redirect_to_log "$script_dir/$version-build.log"
+    umount_stuff
+    qemu-nbd -d "${image_device}"
 }
 
 function cleanup() {
     log "Unmounting filesystems"
     umount_stuff
 
-    log "Detaching ${nbd_device}"
-    qemu-nbd -d "${nbd_device}"
+    log "Detaching ${image_device}"
+    qemu-nbd -d "${image_device}"
 }
 
 # --- Main
@@ -221,17 +224,10 @@ chroot_dir="$build_dir/mnt"
 
 script_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 script_name="$(basename "${BASH_SOURCE[0]}")"
-RED='\033[0;31m'
-GRN='\033[0;32m'
-YLW='\033[0;33m'
-BLU='\033[0;34m'
-NC='\033[0m'
 
-# Redirection magic
-exec 29>&1
+. "$script_dir/_utils.sh"
 
-exec >> "$script_dir/$version-build.log"
-exec 2>&1
+redirect_to_log "$script_dir/$version-build.log"
 
 # Install cleanup using signal handlers
 trap '{ error "Something went wrong!"; cleanup; exit 2; }' EXIT
