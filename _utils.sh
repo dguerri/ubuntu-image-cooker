@@ -38,11 +38,11 @@ function error() {
 }
 
 function redirect_to_log() {
-    # shellcheck disable=SC2034
     local logfile="$1"
+    
     # Redirection magic
     exec 29>&1
-    exec >>"$1"
+    exec >>"$logfile"
     exec 2>&1
 }
 

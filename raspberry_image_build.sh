@@ -18,100 +18,142 @@ set -e
 set -u
 
 # -------------------
-components="main,restricted,universe,multiverse"
-extra_packages="openssh-server,vim,avahi-daemon,bridge-utils,curl,gcc,make,software-properties-common,ubuntu-keyring"
-initial_size_gb="2"
-arch="armhf"
-target_disk="/dev/mmcblk0"
-nic_list=(eth0)
-image_device="/dev/loop0"
-debootstrap="qemu-debootstrap --arch $arch"
-default_user="ubuntu"
-default_user_sshkey="ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCe5Y4UD861L62QApdGrRbhVExS1V3RgGlnRXPYTEIraoQPzBdbhn3OU9q3FRRvIdYgM2LFaYe8ClTqENM0BUHq8DeEm9wiQVu0+TWz8KIGoDJEjUpaFsKrIrtC3uP7lqyJYzzUR0nyJxL00Uf1otXTcJ+9d4RIbNtu370ooLoQZN6LaYN/54NKqiRJ0DXtzY+2iTc2U/ptgfN1YQMizpjjwz2k57JX7UlxnLT3jVFOBF6wu9jT+HEaCDbFbOSDYiziqEz52qvhBRhqrr87nrzSkilv+JHigLMgLmrBuWavCXqdzl7PmNKqfWkj1lI5KlxcA+UHZDJtpIBrblHa91p5 davide@murray.local"
+COMPONENTS="main,restricted,universe,multiverse"
+EXTRA_PACKAGES="openssh-server,vim,avahi-daemon,bridge-utils,curl,gcc,make,software-properties-common,ubuntu-keyring"
+INITIAL_SIZE_GB="2"
+ARCH="armhf"
+TARGET_DISK="/dev/mmcblk0"
+NIC_LIST=(eth0)
+IMAGE_DEVICE="/dev/loop0"
+DEBOOTSTRAP="qemu-debootstrap --arch $ARCH"
+DEFAULT_USER="ubuntu"
+DEFAULT_USER_SSHKEY="ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCe5Y4UD861L62QApdGrRbhVExS1V3RgGlnRXPYTEIraoQPzBdbhn3OU9q3FRRvIdYgM2LFaYe8ClTqENM0BUHq8DeEm9wiQVu0+TWz8KIGoDJEjUpaFsKrIrtC3uP7lqyJYzzUR0nyJxL00Uf1otXTcJ+9d4RIbNtu370ooLoQZN6LaYN/54NKqiRJ0DXtzY+2iTc2U/ptgfN1YQMizpjjwz2k57JX7UlxnLT3jVFOBF6wu9jT+HEaCDbFbOSDYiziqEz52qvhBRhqrr87nrzSkilv+JHigLMgLmrBuWavCXqdzl7PmNKqfWkj1lI5KlxcA+UHZDJtpIBrblHa91p5 davide@murray.local"
 # -------------------
 
 function usage() {
     echo -e "
-$script_name - Davide Guerri <davide.guerri@gmail.com>
+$SCRIPT_NAME - Davide Guerri <davide.guerri@gmail.com>
 
-Build ${RED}Raspberry Pi${NC} ${BLU}2${NC} Ubuntu images
+Build ${RED}Raspberry${NC} ${BLU}P${YLW}i${NC} Ubuntu images
 
-    Usage:
-        $script_name <build|cleanup|mount|umount|chroot> [version]
-        $script_name flash <version> <block device> [hostname]
+Usage:
 
-Options:
+    $SCRIPT_NAME <build|cleanup|chroot|flash> [<options>]
+
+Commands:
 
     build       Build a new raw image
-                Examples:
-                    $script_name build        # Build trusty by default
-                    $script_name build vivid
+
+        $SCRIPT_NAME build [-v <version>] [-p <path>] [-s <bash_script>]
+
+        Opions:
+            -v <version>    Version to build, e.g.: vivid, trusty, precise,
+                            utopic, ... (Default: trusty)
+            -p <path>       Directory to use asa working directory.
+                            If it doesn't exist, a new directory will be
+                            created. (Default <script directory>/rpii)
+            -s <script>     Bash script to run right before umounting the
+                            image. The script will be run in a chrooted
+                            environment.
+        Examples:
+            $SCRIPT_NAME build
+            $SCRIPT_NAME build -v vivid -p /tmp/myimage
+
 
     cleanup     Remove previous build directory (not including the image)
-                Examples:
-                    $script_name cleanup      # Cleanup trusty by default
-                    $script_name cleanup vivid
 
-    mount       Mount the image (assumes nbd device already set up)
-                Examples:
-                    $script_name mount        # Mount trusty by default
-                    $script_name mount vivid
+        $SCRIPT_NAME cleanup [-p <path>]
 
-    umount      Umount the image (leave the nbd device untouched)
-                Examples:
-                    $script_name umount       # Unmount trusty by default
-                    $script_name umount vivid
+        Opions:
+            -p <path>       Directory to use as a working directory.
+                            (Default <script directory>/rpii)
+        Examples:
+            $SCRIPT_NAME cleanup
+            $SCRIPT_NAME cleanup -p /tmp/myimage
 
-    chroot      Chroot into the image (i.e. set up nbd device, mount image,
-                spawn an interactive chroot'ed shell, umount, unset nbd device)
-                Examples:
-                    $script_name chroot      # Chroot to trusty by default
-                    $script_name chroot vivid
+
+    chroot      Chroot into the image (i.e. set up loop device, mount image,
+                spawn an interactive chroot'ed shell, umount, unset loop
+                device). The image must have been already built.
+
+        $SCRIPT_NAME chroot [-p <path>]
+
+        Opions:
+            -p <path>       Directory to use as a working directory.
+                            (Default <script directory>/rpii)
+        Examples:
+            $SCRIPT_NAME chroot
+            $SCRIPT_NAME chroot -p /tmp/myimage
+
 
     flash       Flash the image to a block device setting the given hostname
-                Examples:
-                    $script_name flash trusty /dev/sdb rpi001
+
+        $SCRIPT_NAME chroot -d <device> -[-h <hostname>] [-p <path>]
+
+        Opions:
+            -d <device>     Device to write the image to.
+            -h <hostname>   Hostname to use in the flashed image.
+            -p <path>       Directory to use as a working directory.
+                            (Default <script directory>/rpii)
+
+        Examples:
+            $SCRIPT_NAME flash -d /dev/sdb
+            $SCRIPT_NAME flash -d /dev/sdb -h rpi001
 " >&29
 }
 
 function build() {
-    log "Strarting build of a ${YLW}$version${NC} box, arch ${YLW}$arch${NC}"
-    log "Target disk: ${YLW}$target_disk${NC}"
-    log "Network interface(s): ${YLW}${nic_list[*]}${NC}"
+    local build_dir image_path chroot_dir version script
+    build_dir="$1"
+    image_path="$2"
+    chroot_dir="$3"
+    version="$4"
+    script="${5:-}"
+
+    echo "-----[ $(date +'%d-%m-%Y %H:%M:%S') started - build"
+
+    trap '{ error "Something went wrong!"; cleanup "$chroot_dir"; exit 2; }' \
+        EXIT
+    trap '{ trap - EXIT; error "Interrupted"; cleanup "$chroot_dir";
+            exit 3; }' SIGKILL SIGINT SIGTERM
+
+    log "Strarting build of a ${YLW}$version${NC} box, arch ${YLW}$ARCH${NC}"
+    log "Target disk: ${YLW}$TARGET_DISK${NC}"
+    log "Network interface(s): ${YLW}${NIC_LIST[*]}${NC}"
 
     mkdir -p "$build_dir"
 
-    log "Creating a ${YLW}$initial_size_gb${NC}GB raw image"
+    log "Creating a ${YLW}$INITIAL_SIZE_GB${NC}GB raw image"
     rm -f "$image_path"
-    fallocate -l "${initial_size_gb}G" "$image_path"
+    fallocate -l "${INITIAL_SIZE_GB}G" "$image_path"
 
-    log "Initializing loop device $image_device"
-    losetup "$image_device" "$image_path"
+    log "Initializing loop device $IMAGE_DEVICE"
+    losetup "$IMAGE_DEVICE" "$image_path"
 
-    log "Partitioning $image_device"
-    sfdisk "$image_device" -D -uM <<EOF
+    log "Partitioning $IMAGE_DEVICE"
+    sfdisk "$IMAGE_DEVICE" -D -uM <<EOF
 ,64,c,*
 ,,83
 ;
 EOF
-    partprobe "$image_device"
+    partprobe "$IMAGE_DEVICE"
 
     log "Creating filesystems"
-    mkfs.vfat "${image_device}p1"
-    mkfs.ext4 "${image_device}p2"
+    mkfs.vfat "${IMAGE_DEVICE}p1"
+    mkfs.ext4 "${IMAGE_DEVICE}p2"
 
     log "Mounting filesystems"
     mkdir -p "$chroot_dir"
-    mount "${image_device}p2" "$chroot_dir"
+    mount "${IMAGE_DEVICE}p2" "$chroot_dir"
 
     log "Executing debootstrap (this will take a while)"
-    $debootstrap --verbose --arch "$arch" --components="$components" \
-        --include="$extra_packages" "$version" "$chroot_dir" \
+    $DEBOOTSTRAP --verbose --arch "$ARCH" --components="$COMPONENTS" \
+        --include="$EXTRA_PACKAGES" "$version" "$chroot_dir" \
         http://ports.ubuntu.com/
 
     log "Preparing the chroot environment"
     mkdir -p "$chroot_dir/boot/firmware"
-    mount "${image_device}p1" "$chroot_dir/boot/firmware"
+    mount "${IMAGE_DEVICE}p1" "$chroot_dir/boot/firmware"
     mount --bind /dev/ "$chroot_dir/dev"
     mount -t proc none "$chroot_dir/proc"
     mount -t sysfs none "$chroot_dir/sys"
@@ -119,8 +161,8 @@ EOF
     log "Creating /etc/fstab"
     cat <<EOF > $chroot_dir/etc/fstab
 proc                /proc           proc    defaults          0       0
-${target_disk}p1    /boot/firmware  vfat    defaults          0       2
-${target_disk}p2    /               ext4    defaults,noatime  0       1
+${TARGET_DISK}p1    /boot/firmware  vfat    defaults          0       2
+${TARGET_DISK}p2    /               ext4    defaults,noatime  0       1
 EOF
 
     log "Creating /etc/hostname"
@@ -136,13 +178,13 @@ ff02::1     ip6-allnodes
 ff02::2     ip6-allrouters
 EOF
 
-    log "Creating /etc/network/interfaces with interface(s): '${nic_list[*]}'"
+    log "Creating /etc/network/interfaces with interface(s): '${NIC_LIST[*]}'"
     cat <<EOF > $chroot_dir/etc/network/interfaces
 auto lo
 iface lo inet loopback
 EOF
 
-    for nic in "${nic_list[@]}"; do
+    for nic in "${NIC_LIST[@]}"; do
         cat <<EOF >> $chroot_dir/etc/network/interfaces
 
 auto $nic
@@ -199,7 +241,7 @@ EOF
 # http://www.raspberrypi.org/documentation/configuration/config-txt.md
 EOF
     ln -sf firmware/config.txt "$chroot_dir/boot/config.txt"
-    echo "dwc_otg.lpm_enable=0 console=tty1 root=${target_disk}p2 rootwait" \
+    echo "dwc_otg.lpm_enable=0 console=tty1 root=${TARGET_DISK}p2 rootwait" \
         > "$chroot_dir/boot/firmware/cmdline.txt"
     ln -sf firmware/cmdline.txt "$chroot_dir/boot/cmdline.txt"
 
@@ -218,16 +260,16 @@ blacklist snd_soc_tas5713
 blacklist snd_soc_wm8804
 EOF
 
-    log "Setting up user '$default_user'"
+    log "Setting up user '$DEFAULT_USER'"
     chroot "$chroot_dir" <<EOF
 adduser --gecos "Default user" --add_extra_groups \
-    --disabled-password "$default_user"
-mkdir "/home/${default_user}/.ssh"
-chmod 700 "/home/${default_user}/.ssh"
-echo $default_user_sshkey > "/home/${default_user}/.ssh/authorized_keys"
-chown -R ${default_user}:${default_user} "/home/${default_user}/.ssh"
-echo "${default_user} ALL=(ALL) NOPASSWD: ALL" > \
-    "/etc/sudoers.d/${default_user}-no-pw"
+    --disabled-password "$DEFAULT_USER"
+mkdir "/home/${DEFAULT_USER}/.ssh"
+chmod 700 "/home/${DEFAULT_USER}/.ssh"
+echo $DEFAULT_USER_SSHKEY > "/home/${DEFAULT_USER}/.ssh/authorized_keys"
+chown -R ${DEFAULT_USER}:${DEFAULT_USER} "/home/${DEFAULT_USER}/.ssh"
+echo "${DEFAULT_USER} ALL=(ALL) NOPASSWD: ALL" > \
+    "/etc/sudoers.d/${DEFAULT_USER}-no-pw"
 EOF
 
     log "Cleaning up the image"
@@ -243,49 +285,86 @@ EOF
         rm -f "$chroot_dir/var/lib/dbus/machine-id"
 
     log "******* your image is ready: '$image_path' *******"
+
+    trap - SIGKILL SIGINT SIGTERM EXIT
 }
 
 function mount_stuff() {
-    mount "${image_device}p2" "$chroot_dir"
-    mount "${image_device}p1" "$chroot_dir/boot/firmware"
+    local chroot_dir
+    chroot_dir="$1"
+
+    echo "-----[ $(date +'%d-%m-%Y %H:%M:%S') started - mount_stuff"
+
+    mount "${IMAGE_DEVICE}p2" "$chroot_dir"
+    mount "${IMAGE_DEVICE}p1" "$chroot_dir/boot/firmware"
     mount --bind /dev/ "$chroot_dir/dev"
     mount -t proc none "$chroot_dir/proc"
     mount -t sysfs none "$chroot_dir/sys"
 }
 
 function umount_stuff() {
-    set +e
+    local chroot_dir
+    chroot_dir="$1"
 
+    echo "-----[ $(date +'%d-%m-%Y %H:%M:%S') started - umount_stuff"
+
+    set +e
     lsof -t "$chroot_dir" | xargs kill >/dev/null 2>&1
     umount "$chroot_dir/dev" "$chroot_dir/proc" "$chroot_dir/sys" \
         "$chroot_dir/boot/firmware" "$chroot_dir"
-
     set -e
 }
 
 function chroot_stuff() {
-    losetup "$image_device" "$image_path"
-    mount_stuff
+    local chroot_dir image_path
+    chroot_dir="$1"
+    image_path="$2"
+
+    echo "-----[ $(date +'%d-%m-%Y %H:%M:%S') started - chroot"
+
+    trap '{ error "Something went wrong!"; cleanup "$chroot_dir"; exit 2; }' \
+        EXIT
+    trap '{ trap - EXIT; error "Interrupted"; cleanup "$chroot_dir";
+            exit 3; }' SIGKILL SIGINT SIGTERM
+
+    losetup "$IMAGE_DEVICE" "$image_path"
+    mount_stuff "$chroot_dir"
     log "Chrooting in a bash shell, <ctrl+d> to exit"
     reset_redirections
     LANG=C chroot "$chroot_dir"
-    redirect_to_log "$script_dir/$version-build.log"
-    umount_stuff
-    losetup -d "${image_device}"
+    redirect_to_log "$SCRIPT_DIR/build.log"
+    umount_stuff "$chroot_dir"
+    losetup -d "${IMAGE_DEVICE}"
+
+    trap - SIGKILL SIGINT SIGTERM EXIT
 }
 
 function cleanup() {
-    log "Unmounting filesystems"
-    umount_stuff
+    local chroot_dir
+    chroot_dir="$1"
 
-    log "Detaching ${image_device}"
-    losetup -d "${image_device}"
+    echo "-----[ $(date +'%d-%m-%Y %H:%M:%S') started - cleanup"
+
+    log "Unmounting filesystems"
+    umount_stuff "$chroot_dir"
+
+    log "Detaching $IMAGE_DEVICE"
+    losetup -d "$IMAGE_DEVICE"
 }
 
 function flash() {
-    local device hostname tmp_dir image_name choice
+    local device image_path hostname
     device="$1"
-    hostname=${2:-}
+    image_path="$2"
+    hostname="${3:-}"
+
+    echo "-----[ $(date +'%d-%m-%Y %H:%M:%S') started - flash"
+
+    trap '{ error "Something went wrong!"; exit 2; }' \
+        EXIT
+    trap '{ trap - EXIT; error "Interrupted"; exit 3; }' SIGKILL SIGINT SIGTERM
+
+    local image_name choice tmp_dir
     tmp_dir="$(mktemp -d)"
     image_name="$(basename "$image_path")"
 
@@ -307,13 +386,13 @@ function flash() {
     if [ -n "$hostname" ]; then
         log "Setting image hostname to $hostname"
         mkdir "$tmp_dir/mnt"
-        losetup "$image_device" "$tmp_dir/$image_name"
-        partprobe "$image_device"
-        mount -t ext4 "$image_device"p2 "$tmp_dir/mnt"
+        losetup "$IMAGE_DEVICE" "$tmp_dir/$image_name"
+        partprobe "$IMAGE_DEVICE"
+        mount -t ext4 "$IMAGE_DEVICE"p2 "$tmp_dir/mnt"
         echo "$hostname" > "$tmp_dir/mnt/etc/hostname"
         echo -e "127.0.0.1\t$hostname" >> "$tmp_dir/mnt/etc/hosts"
         umount "$tmp_dir/mnt"
-        losetup -d "$image_device"
+        losetup -d "$IMAGE_DEVICE"
     fi
 
     log "Writing $tmp_dir/$image_name to $device (this will take a while)"
@@ -321,67 +400,192 @@ function flash() {
     rm -rf "$tmp_dir"
 
     log "${YLW}D${BLU}o${RED}n${GRN}e${NC}!"
+
+    trap - SIGKILL SIGINT SIGTERM EXIT
 }
 
 # --- Main
 
-default_version="trusty"
-version="${2:-$default_version}"
-build_dir="/tmp/$version-build"
-image_path="$build_dir/$version.raw"
-chroot_dir="$build_dir/mnt"
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}")"
 
-script_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-script_name="$(basename "${BASH_SOURCE[0]}")"
+DEFAULT_VERSION="trusty"
+DEFAULT_BUILD_DIR="$SCRIPT_DIR/rpii"
 
-. "$script_dir/_utils.sh"
+. "$SCRIPT_DIR/_utils.sh"
 
-redirect_to_log "$script_dir/$version-build.log"
+redirect_to_log "$SCRIPT_DIR/build.log"
+log "Verbose log redirected to ${BLU}$SCRIPT_DIR/build.log${NC}"
+echo "-----[ $(date +'%d-%m-%Y %H:%M:%S') started"
 
 # Install cleanup using signal handlers
-trap '{ error "Something went wrong!"; cleanup; exit 2; }' EXIT
-trap '{ trap - EXIT; error "Interrupted"; cleanup;  exit 3; }' SIGHUP SIGINT \
-    SIGTERM
-
-log "Verbose log redirected to ${BLU}$script_dir/$version-build.log${NC}"
 
 command=${1:-usage}
-echo "-----[ $(date +'%d-%m-%Y %H:%M:%S') started - $command - $version"
+if [ $# -ge 1 ]; then
+    shift
+fi
 
-case "${command}" in
+case "$command" in
     build)
-        build
-        log "Exiting";
-        cleanup;
-        ;;
-    cleanup)
-        cleanup
-        log "Removing build dir"
-        rm -rf "$chroot_dir"
-        ;;
-    mount)
-        mount_stuff
-        ;;
-    umount)
-        umount_stuff
-        ;;
-    chroot)
-        chroot_stuff
-        ;;
-    flash)
-        if [ $# -lt 3 ]; then
-                usage
-                trap - EXIT
-                exit 1
+        _build_dir="$DEFAULT_BUILD_DIR"
+        _version="$DEFAULT_VERSION"
+
+        while getopts "v:p:s:" option; do
+            case "$option" in
+                v)
+                    _version="$OPTARG"
+                    ;;
+                p)
+                    _build_dir="$OPTARG"
+                    ;;
+                s)
+                    _script="$OPTARG"
+                    ;;
+                \?)
+                    log "Invalid option: -$OPTARG"
+                    usage
+                    exit 2
+                    ;;
+                :)
+                    log "Option -$OPTARG requires an argument"
+                    usage
+                    exit 2
+                    ;;
+            esac
+        done
+
+        if [ $# -ne $((OPTIND-1)) ]; then
+            log "Unrecognized options"
+            usage
+            exit 2
         fi
-        flash "$3" "${4:-}"
+
+        _image_path="$_build_dir/image.raw"
+        _chroot_dir="$_build_dir/mnt"
+
+        build "$_build_dir" "$_image_path" "$_chroot_dir" "$_version" \
+            "${_script:-}"
+
+        log "Exiting";
+        cleanup "$_chroot_dir";
+        ;;
+
+    cleanup)
+        _build_dir="$DEFAULT_BUILD_DIR"
+
+        while getopts ":p:" option; do
+            case "$option" in
+                p)
+                    _build_dir="$OPTARG"
+                    ;;
+                \?)
+                    log "Invalid option: -$OPTARG"
+                    usage
+                    exit 2
+                    ;;
+                :)
+                    log "Option -$OPTARG requires an argument"
+                    usage
+                    exit 2
+                    ;;
+            esac
+        done
+
+        if [ $# -ne $((OPTIND-1)) ]; then
+            log "Unrecognized options"
+            usage
+            exit 2
+        fi
+
+        _chroot_dir="$_build_dir/mnt"
+
+        cleanup "$_chroot_dir"
+
+        log "Removing build dir"
+        rm -rf "$_chroot_dir"
+        ;;
+
+    chroot)
+        _build_dir="$DEFAULT_BUILD_DIR"
+
+        while getopts ":p:" option; do
+            case "$option" in
+                p)
+                    _build_dir="$OPTARG"
+                    ;;
+                \?)
+                    log "Invalid option: -$OPTARG"
+                    usage
+                    exit 2
+                    ;;
+                :)
+                    log "Option -$OPTARG requires an argument"
+                    usage
+                    exit 2
+                    ;;
+            esac
+        done
+
+        if [ $# -ne $((OPTIND-1)) ]; then
+            log "Unrecognized options"
+            usage
+            exit 2
+        fi
+
+        _chroot_dir="$_build_dir/mnt"
+
+        chroot_stuff "$_chroot_dir" "$_build_dir/image.raw"
+        ;;
+
+    flash)
+        _build_dir="$DEFAULT_BUILD_DIR"
+
+        while getopts ":d:h:p:" option; do
+            case "$option" in
+                d)
+                    _device="$OPTARG"
+                    ;;
+                h)
+                    _hostname="$OPTARG"
+                    ;;
+                p)
+                    _build_dir="$OPTARG"
+                    ;;
+                \?)
+                  log "Invalid option: -$OPTARG"
+                  usage
+                  exit 2
+                  ;;
+                :)
+                  log "Option -$OPTARG requires an argument"
+                  usage
+                  exit 2
+                  ;;
+            esac
+        done
+
+        if [ $# -ne $((OPTIND-1)) ]; then
+            log "Unrecognized options"
+            usage
+            exit 2
+        fi
+
+        if [ -z "${_device:-}" ]; then
+            log "Missing device (-d)"
+            usage
+            exit 2
+        fi
+
+        flash "$_device" "$_build_dir/image.raw" "${_hostname:-}"
+        ;;
+    usage)
+        usage
         ;;
     *)
+        log "Unrecognized command: '$command'"
         usage
-        trap - EXIT
         exit 1
         ;;
 esac
 
-trap - EXIT
 exit 0
