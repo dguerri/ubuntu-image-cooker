@@ -32,7 +32,8 @@ function usage() {
     echo -e "
 $SCRIPT_NAME - Davide Guerri <davide.guerri@gmail.com>
 
-Build ${BLU}Cloud${NC} Ubuntu images (${BLU}BM${NC} ${RED}and ${BLU}BM${NC})
+Build ${BLU}Cloud${NC} Ubuntu images
+    For ${BLU}VMs${NC} ${RED}and ${BLU}BM nodes${NC}
 
 Usage:
 
@@ -49,7 +50,7 @@ Commands:
                             utopic, ... (Default: trusty)
             -p <path>       Directory to use asa working directory.
                             If it doesn't exist, a new directory will be
-                            created. (Default <script directory>/rpii)
+                            created. (Default <script directory>/image-build)
             -s <script>     Bash script to run right before umounting the
                             image. The script will be run in a chrooted
                             environment.
@@ -64,7 +65,7 @@ Commands:
 
         Opions:
             -p <path>       Directory to use as a working directory.
-                            (Default <script directory>/rpii)
+                            (Default <script directory>/image-build)
         Examples:
             $SCRIPT_NAME cleanup
             $SCRIPT_NAME cleanup -p /tmp/myimage
@@ -76,7 +77,7 @@ Commands:
 
         Opions:
             -p <path>       Directory to use as a working directory.
-                            (Default <script directory>/rpii)
+                            (Default <script directory>/image-build)
         Examples:
             $SCRIPT_NAME chroot
             $SCRIPT_NAME chroot -p /tmp/myimage
@@ -248,12 +249,12 @@ function chroot_stuff() {
             exit 3; }' SIGKILL SIGINT SIGTERM
 
     qemu-nbd -c "$IMAGE_DEVICE" "$image_path"
-    mount_stuff
+    mount_stuff "$chroot_dir"
     log "Chrooting in a bash shell, <ctrl+d> to exit"
     reset_redirections
     LANG=C chroot "$chroot_dir"
     redirect_to_log "$SCRIPT_DIR/build.log"
-    umount_stuff
+    umount_stuff "$chroot_dir"
     qemu-nbd -d "${IMAGE_DEVICE}"
 }
 
@@ -264,7 +265,7 @@ function cleanup() {
     echo "-----[ $(date +'%d-%m-%Y %H:%M:%S') started - cleanup"
 
     log "Unmounting filesystems"
-    umount_stuff
+    umount_stuff "$chroot_dir"
 
     log "Detaching ${IMAGE_DEVICE}"
     qemu-nbd -d "${IMAGE_DEVICE}"
