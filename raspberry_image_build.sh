@@ -46,7 +46,7 @@ Commands:
 
         $SCRIPT_NAME build [-v <version>] [-p <path>] [-s <bash_script>]
 
-        Opions:
+        Options:
             -v <version>    Version to build, e.g.: vivid, trusty, precise,
                             utopic, ... (Default: trusty)
             -p <path>       Directory to use asa working directory.
@@ -64,7 +64,7 @@ Commands:
 
         $SCRIPT_NAME cleanup [-p <path>]
 
-        Opions:
+        Options:
             -p <path>       Directory to use as a working directory.
                             (Default <script directory>/rpii)
         Examples:
@@ -72,13 +72,11 @@ Commands:
             $SCRIPT_NAME cleanup -p /tmp/myimage
 
 
-    chroot      Chroot into the image (i.e. set up loop device, mount image,
-                spawn an interactive chroot'ed shell, umount, unset loop
-                device). The image must have been already built.
+    chroot      Chroot into the image. The image must have been already built.
 
         $SCRIPT_NAME chroot [-p <path>]
 
-        Opions:
+        Options:
             -p <path>       Directory to use as a working directory.
                             (Default <script directory>/rpii)
         Examples:
@@ -90,7 +88,7 @@ Commands:
 
         $SCRIPT_NAME chroot -d <device> -[-h <hostname>] [-p <path>]
 
-        Opions:
+        Options:
             -d <device>     Device to write the image to.
             -h <hostname>   Hostname to use in the flashed image.
             -p <path>       Directory to use as a working directory.
@@ -108,7 +106,12 @@ function build() {
     image_path="$2"
     chroot_dir="$3"
     version="$4"
+    # shellcheck disable=SC2034
     script="${5:-}"
+
+    if [ -n "$script" ]; then
+        log "*** Sorry 'script' feature has not yet been implemented!"
+    fi
 
     echo "-----[ $(date +'%d-%m-%Y %H:%M:%S') started - build"
 
@@ -578,9 +581,11 @@ case "$command" in
 
         flash "$_device" "$_build_dir/image.raw" "${_hostname:-}"
         ;;
+
     usage)
         usage
         ;;
+
     *)
         log "Unrecognized command: '$command'"
         usage
