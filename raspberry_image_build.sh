@@ -17,18 +17,32 @@
 set -e
 set -u
 
-# -------------------
-COMPONENTS="main,restricted,universe,multiverse"
-EXTRA_PACKAGES="openssh-server,vim,avahi-daemon,bridge-utils,curl,gcc,make,software-properties-common,ubuntu-keyring"
-INITIAL_SIZE_GB="2"
+
+# --[ You may want to tweak these ]-------------------------------------------
+USER="ubuntu"
+USER_SSHKEY="ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCe5Y4UD861L62QApdGrRbhVEx\
+S1V3RgGlnRXPYTEIraoQPzBdbhn3OU9q3FRRvIdYgM2LFaYe8ClTqENM0BUHq8DeEm9wiQVu0+TW\
+z8KIGoDJEjUpaFsKrIrtC3uP7lqyJYzzUR0nyJxL00Uf1otXTcJ+9d4RIbNtu370ooLoQZN6LaYN\
+/54NKqiRJ0DXtzY+2iTc2U/ptgfN1YQMizpjjwz2k57JX7UlxnLT3jVFOBF6wu9jT+HEaCDbFbOS\
+DYiziqEz52qvhBRhqrr87nrzSkilv+JHigLMgLmrBuWavCXqdzl7PmNKqfWkj1lI5KlxcA+UHZDJ\
+tpIBrblHa91p5 davide@murray.local"
+# --[ Less likely you will need to tweak these ]------------------------------
 ARCH="armhf"
-TARGET_DISK="/dev/mmcblk0"
-NIC_LIST=(eth0)
-IMAGE_DEVICE="/dev/loop0"
+COMPONENTS=( main restricted universe multiverse )
 DEBOOTSTRAP="qemu-debootstrap --arch $ARCH"
-DEFAULT_USER="ubuntu"
-DEFAULT_USER_SSHKEY="ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCe5Y4UD861L62QApdGrRbhVExS1V3RgGlnRXPYTEIraoQPzBdbhn3OU9q3FRRvIdYgM2LFaYe8ClTqENM0BUHq8DeEm9wiQVu0+TWz8KIGoDJEjUpaFsKrIrtC3uP7lqyJYzzUR0nyJxL00Uf1otXTcJ+9d4RIbNtu370ooLoQZN6LaYN/54NKqiRJ0DXtzY+2iTc2U/ptgfN1YQMizpjjwz2k57JX7UlxnLT3jVFOBF6wu9jT+HEaCDbFbOSDYiziqEz52qvhBRhqrr87nrzSkilv+JHigLMgLmrBuWavCXqdzl7PmNKqfWkj1lI5KlxcA+UHZDJtpIBrblHa91p5 davide@murray.local"
-# -------------------
+EXTRA_PACKAGES=( openssh-server vim avahi-daemon bridge-utils curl gcc make
+                 software-properties-common ubuntu-keyring )
+IMAGE_DEVICE="/dev/loop0"
+INITIAL_SIZE_GB="2"
+NIC_LIST=( eth0 )
+TARGET_DISK="/dev/mmcblk0"
+UBUNTU_MIRROR="http://ports.ubuntu.com/"
+# --[ end ]------------------------------------------------------------------
+
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}")"
+
+. "$SCRIPT_DIR/_utils.sh"
 
 function usage() {
     echo -e "
@@ -59,7 +73,6 @@ Commands:
             $SCRIPT_NAME build
             $SCRIPT_NAME build -v vivid -p /tmp/myimage
 
-
     cleanup     Remove previous build directory (not including the image)
 
         $SCRIPT_NAME cleanup [-p <path>]
@@ -68,9 +81,7 @@ Commands:
             -p <path>       Directory to use as a working directory.
                             (Default <script directory>/rpii)
         Examples:
-            $SCRIPT_NAME cleanup
             $SCRIPT_NAME cleanup -p /tmp/myimage
-
 
     chroot      Chroot into the image. The image must have been already built.
 
@@ -80,9 +91,7 @@ Commands:
             -p <path>       Directory to use as a working directory.
                             (Default <script directory>/rpii)
         Examples:
-            $SCRIPT_NAME chroot
             $SCRIPT_NAME chroot -p /tmp/myimage
-
 
     flash       Flash the image to a block device setting the given hostname
 
@@ -95,8 +104,8 @@ Commands:
                             (Default <script directory>/rpii)
 
         Examples:
-            $SCRIPT_NAME flash -d /dev/sdb
             $SCRIPT_NAME flash -d /dev/sdb -h rpi001
+
 " >&29
 }
 
@@ -120,7 +129,7 @@ function build() {
     trap '{ trap - EXIT; error "Interrupted"; cleanup "$chroot_dir";
             exit 3; }' SIGKILL SIGINT SIGTERM
 
-    log "Strarting build of a ${YLW}$version${NC} box, arch ${YLW}$ARCH${NC}"
+    log "Starting build of a ${YLW}$version${NC} box, arch ${YLW}$ARCH${NC}"
     log "Target disk: ${YLW}$TARGET_DISK${NC}"
     log "Network interface(s): ${YLW}${NIC_LIST[*]}${NC}"
 
@@ -150,9 +159,10 @@ EOF
     mount "${IMAGE_DEVICE}p2" "$chroot_dir"
 
     log "Executing debootstrap (this will take a while)"
-    $DEBOOTSTRAP --verbose --arch "$ARCH" --components="$COMPONENTS" \
-        --include="$EXTRA_PACKAGES" "$version" "$chroot_dir" \
-        http://ports.ubuntu.com/
+    $DEBOOTSTRAP --verbose --arch "$ARCH" \
+        --components="$(join , ${COMPONENTS[@]})" \
+        --include="$(join , ${EXTRA_PACKAGES[@]})" "$version" "$chroot_dir" \
+        "$UBUNTU_MIRROR"
 
     log "Preparing the chroot environment"
     mkdir -p "$chroot_dir/boot/firmware"
@@ -208,16 +218,16 @@ EOF
 EOF
 
     cat <<EOF >"$chroot_dir/etc/apt/sources.list"
-deb http://ports.ubuntu.com/ ${version} main restricted universe multiverse
-deb http://ports.ubuntu.com/ ${version}-updates main restricted universe multiverse
-deb http://ports.ubuntu.com/ ${version}-security main restricted universe multiverse
-deb http://ports.ubuntu.com/ ${version}-backports main restricted universe multiverse
+deb $UBUNTU_MIRROR $version $(join " " ${COMPONENTS[@]})
+deb $UBUNTU_MIRROR $version-updates $(join " " ${COMPONENTS[@]})
+deb $UBUNTU_MIRROR $version-security $(join " " ${COMPONENTS[@]})
+deb $UBUNTU_MIRROR $version-backports $(join " " ${COMPONENTS[@]})
 EOF
 
     chroot "$chroot_dir" apt-add-repository -y ppa:fo0bar/rpi2
     chroot "$chroot_dir" apt-get update
 
-    log "Installing Linux kernel"
+    log "Installing Linux kernel and initramfs-tools"
     LANG=C DEBIAN_FRONTEND=noninteractive chroot "$chroot_dir" apt-get -y \
         --no-install-recommends install linux-image-rpi2
     LANG=C DEBIAN_FRONTEND=noninteractive chroot "$chroot_dir" apt-get -y \
@@ -263,17 +273,17 @@ blacklist snd_soc_tas5713
 blacklist snd_soc_wm8804
 EOF
 
-    log "Setting up user '$DEFAULT_USER'"
-    chroot "$chroot_dir" <<EOF
-adduser --gecos "Default user" --add_extra_groups \
-    --disabled-password "$DEFAULT_USER"
-mkdir "/home/${DEFAULT_USER}/.ssh"
-chmod 700 "/home/${DEFAULT_USER}/.ssh"
-echo $DEFAULT_USER_SSHKEY > "/home/${DEFAULT_USER}/.ssh/authorized_keys"
-chown -R ${DEFAULT_USER}:${DEFAULT_USER} "/home/${DEFAULT_USER}/.ssh"
-echo "${DEFAULT_USER} ALL=(ALL) NOPASSWD: ALL" > \
-    "/etc/sudoers.d/${DEFAULT_USER}-no-pw"
-EOF
+    log "Setting up user '$USER'"
+    chroot "$chroot_dir" adduser --gecos "Default user" --add_extra_groups \
+        --disabled-password "$USER"
+    echo "${USER} ALL=(ALL) NOPASSWD: ALL" > \
+        "$chroot_dir/etc/sudoers.d/${USER}-no-pw"
+
+    log "Add ssh key for '$USER'"
+    mkdir "$chroot_dir/home/${USER}/.ssh"
+    chmod 700 "$chroot_dir/home/${USER}/.ssh"
+    echo $USER_SSHKEY > "$chroot_dir/home/${USER}/.ssh/authorized_keys"
+    chroot "$chroot_dir" chown -R ${USER}:${USER} "/home/${USER}/.ssh"
 
     log "Cleaning up the image"
     LANG=C DEBIAN_FRONTEND=noninteractive chroot "$chroot_dir" apt-get clean
@@ -365,7 +375,8 @@ function flash() {
 
     trap '{ error "Something went wrong!"; exit 2; }' \
         EXIT
-    trap '{ trap - EXIT; error "Interrupted"; exit 3; }' SIGKILL SIGINT SIGTERM
+    trap '{ trap - EXIT; error "Interrupted"; exit 3; }' SIGKILL SIGINT \
+        SIGTERM
 
     local image_name choice tmp_dir
     tmp_dir="$(mktemp -d)"
@@ -409,13 +420,8 @@ function flash() {
 
 # --- Main
 
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}")"
-
 DEFAULT_VERSION="trusty"
 DEFAULT_BUILD_DIR="$SCRIPT_DIR/rpii"
-
-. "$SCRIPT_DIR/_utils.sh"
 
 redirect_to_log "$SCRIPT_DIR/build.log"
 log "Verbose log redirected to ${BLU}$SCRIPT_DIR/build.log${NC}"

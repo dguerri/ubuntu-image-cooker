@@ -17,16 +17,26 @@
 set -e
 set -u
 
-# -------------------
-COMPONENTS="main,restricted,universe,multiverse"
-EXTRA_PACKAGES="openssh-server,acpid,sudo,cloud-init,cloud-initramfs-growroot"
+# --[ You may want to tweak these ]-------------------------------------------
 INITIAL_SIZE_GB="8"
-ARCH="amd64"
+# Enable DHCP on the following interfaces
+NIC_LIST=( eth0 )
 TARGET_DISK="/dev/sda"
-NIC_LIST=(eth0)
-IMAGE_DEVICE="/dev/nbd0"
+# --[ Less likely you will need to tweak these ]------------------------------
+ARCH="amd64"
+COMPONENTS=( main restricted universe multiverse )
 DEBOOTSTRAP="debootstrap"
-# -------------------
+EXTRA_PACKAGES=( openssh-server acpid sudo cloud-init
+                 cloud-initramfs-growroot )
+IMAGE_DEVICE="/dev/nbd0"
+UBUNTU_MIRROR="http://archive.ubuntu.com/ubuntu/"
+# --[ end ]------------------------------------------------------------------
+
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}")"
+
+. "$SCRIPT_DIR/_utils.sh"
+
 
 function usage() {
     echo -e "
@@ -46,7 +56,7 @@ Commands:
         $SCRIPT_NAME build [-v <version>] [-p <path>] [-s <bash_script>]
 
         Opions:
-            -v <version>    Version to build, e.g.: vivid, trusty, precise,
+            -v <version>    Version to build  e.g.: vivid, trusty, precise,
                             utopic, ... (Default: trusty)
             -p <path>       Directory to use asa working directory.
                             If it doesn't exist, a new directory will be
@@ -57,7 +67,6 @@ Commands:
         Examples:
             $SCRIPT_NAME build
             $SCRIPT_NAME build -v vivid -p /tmp/myimage
-
 
     cleanup     Remove previous build directory (not including the image)
 
@@ -70,7 +79,6 @@ Commands:
             $SCRIPT_NAME cleanup
             $SCRIPT_NAME cleanup -p /tmp/myimage
 
-
     chroot      Chroot into the image. The image must have been already built.
 
         $SCRIPT_NAME chroot [-p <path>]
@@ -81,7 +89,6 @@ Commands:
         Examples:
             $SCRIPT_NAME chroot
             $SCRIPT_NAME chroot -p /tmp/myimage
-
 
 " >&29
 }
@@ -136,9 +143,10 @@ EOF
     mount "${IMAGE_DEVICE}p2" "$chroot_dir"
 
     log "Executing debootstrap (this will take a while)"
-    $DEBOOTSTRAP --verbose --arch "$ARCH" --components="$COMPONENTS" \
-        --include="$EXTRA_PACKAGES" "$version" "$chroot_dir" \
-        http://archive.ubuntu.com/ubuntu/
+    $DEBOOTSTRAP --verbose --arch "$ARCH" \
+        --components="$(join , ${COMPONENTS[@]})" \
+        --include="$(join , ${EXTRA_PACKAGES[@]})" "$version" "$chroot_dir" \
+        "$UBUNTU_MIRROR"
 
     log "Preparing the chroot environment"
     mount "${IMAGE_DEVICE}p1" "$chroot_dir/boot"
@@ -273,13 +281,8 @@ function cleanup() {
 
 # --- Main
 
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}")"
-
 DEFAULT_VERSION="trusty"
 DEFAULT_BUILD_DIR="$SCRIPT_DIR/image-build"
-
-. "$SCRIPT_DIR/_utils.sh"
 
 redirect_to_log "$SCRIPT_DIR/build.log"
 log "Verbose log redirected to ${BLU}$SCRIPT_DIR/build.log${NC}"

@@ -39,7 +39,7 @@ function error() {
 
 function redirect_to_log() {
     local logfile="$1"
-    
+
     # Redirection magic
     exec 29>&1
     exec >>"$logfile"
@@ -50,4 +50,11 @@ function reset_redirections() {
     exec 1>&29
     exec 2>&1
     exec 29>&-
+}
+
+function join() {
+    local IFS="$1";
+
+    shift;
+    echo "$*";
 }
