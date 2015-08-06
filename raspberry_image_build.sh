@@ -37,6 +37,7 @@ INITIAL_SIZE_GB="2"
 NIC_LIST=( eth0 )
 TARGET_DISK="/dev/mmcblk0"
 UBUNTU_MIRROR="http://ports.ubuntu.com/"
+IMAGE_NAME="image.raw"
 # --[ end ]------------------------------------------------------------------
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
@@ -469,7 +470,7 @@ case "$command" in
             exit 2
         fi
 
-        _image_path="$_build_dir/image.raw"
+        _image_path="$_build_dir/$IMAGE_NAME"
         _chroot_dir="$_build_dir/mnt"
 
         build "$_build_dir" "$_image_path" "$_chroot_dir" "$_version" \
@@ -543,7 +544,7 @@ case "$command" in
 
         _chroot_dir="$_build_dir/mnt"
 
-        chroot_stuff "$_chroot_dir" "$_build_dir/image.raw"
+        chroot_stuff "$_chroot_dir" "$_build_dir/$IMAGE_NAME"
         ;;
 
     flash)
@@ -585,7 +586,7 @@ case "$command" in
             exit 2
         fi
 
-        flash "$_device" "$_build_dir/image.raw" "${_hostname:-}"
+        flash "$_device" "$_build_dir/$IMAGE_NAME" "${_hostname:-}"
         ;;
 
     usage)

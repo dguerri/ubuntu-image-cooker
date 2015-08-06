@@ -30,6 +30,7 @@ EXTRA_PACKAGES=( openssh-server acpid sudo cloud-init
                  cloud-initramfs-growroot )
 IMAGE_DEVICE="/dev/nbd0"
 UBUNTU_MIRROR="http://archive.ubuntu.com/ubuntu/"
+IMAGE_NAME="image.qcow2"
 # --[ end ]------------------------------------------------------------------
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
@@ -330,7 +331,7 @@ case "$command" in
             exit 2
         fi
 
-        _image_path="$_build_dir/image.raw"
+        _image_path="$_build_dir/$IMAGE_NAME"
         _chroot_dir="$_build_dir/mnt"
 
         build "$_build_dir" "$_image_path" "$_chroot_dir" "$_version" \
@@ -404,7 +405,7 @@ case "$command" in
 
         _chroot_dir="$_build_dir/mnt"
 
-        chroot_stuff "$_chroot_dir" "$_build_dir/image.qcow2"
+        chroot_stuff "$_chroot_dir" "$_build_dir/$IMAGE_NAME"
         ;;
 
     usage)
