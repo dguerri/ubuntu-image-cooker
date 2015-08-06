@@ -8,7 +8,32 @@ Build minimal Ubuntu images for Cloud VMs and Baremetal, from scratch.
 Example usage
 -------------
 
-    TBW
+    root@bm-development:~/scripts# ./cloud_image_build.sh build
+    [06-08-2015 16:34:02] Verbose log redirected to /root/scripts/build.log
+    [06-08-2015 16:34:02] Strarting build of a trusty box, arch amd64
+    [06-08-2015 16:34:02] Target disk: /dev/sda
+    [06-08-2015 16:34:02] Network interface(s): eth0
+    [06-08-2015 16:34:02] Creating a 8G qcow2 image
+    [06-08-2015 16:34:02] Initializing nbd device /dev/nbd0
+    [06-08-2015 16:34:02] Partitioning /dev/nbd0
+    [06-08-2015 16:34:02] Creating filesystems
+    [06-08-2015 16:34:38] Mounting filesystems
+    [06-08-2015 16:34:38] Executing debootstrap (this will take a while)
+    [06-08-2015 16:54:30] Preparing the chroot environment
+    [06-08-2015 16:54:30] Creating /etc/fstab
+    [06-08-2015 16:54:30] Creating /etc/hostname
+    [06-08-2015 16:54:30] Creating /etc/hosts
+    [06-08-2015 16:54:30] Creating /etc/network/interfaces with interface(s): 'eth0'
+    [06-08-2015 16:54:30] Giving a personal touch to the login screen (tty)
+    [06-08-2015 16:54:30] Installing additional packages: grub and Linux kernel
+    [06-08-2015 17:02:25] Installing grub (/dev/nbd0)
+    [06-08-2015 17:02:31] Fixing grub configuration (using /dev/sda)
+    [06-08-2015 17:02:31] Cleaning up the image
+    [06-08-2015 17:02:32] ******* your image is ready: '/root/scripts/image-build/image.qcow2' *******
+    [06-08-2015 17:02:32] Exiting
+    [06-08-2015 17:02:32] Unmounting filesystems
+    [06-08-2015 17:02:37] Detaching /dev/nbd0
+    root@bm-development:~/scripts#
 
 Available commands
 ------------------
