@@ -15,12 +15,13 @@
 # limitations under the License.
 
 get_ip_addresses() {
+    local ifname addr
     for net in /sys/class/net/*; do
         ifname=$(basename "$net")
         if [ "$ifname" != 'lo' ]; then
-            printf "%s" "$ifname: "
-            /sbin/ifconfig "$ifname" | grep 'inet addr' | awk '{ print $2 }' \
-                | awk -F: '{ print $2 }'
+            addr="$(/sbin/ifconfig "$ifname" | grep 'inet addr' \
+                | awk '{ print $2 }' | awk -F: '{ print $2 }')"
+            printf "%13s: %s\n" "$ifname" "$addr"
         fi
     done
 }

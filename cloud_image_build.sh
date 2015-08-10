@@ -189,9 +189,9 @@ EOF
     done
 
     log "Giving a personal touch to the login screen (tty)"
-    cp "$SCRIPT_DIR/extras/show-ip-address" \
+    cp "$SCRIPT_DIR/extras/show-ip-addresses" \
         "$chroot_dir/etc/network/if-up.d/"
-    chmod +x "$chroot_dir/etc/network/if-up.d/show-ip-address"
+    chmod +x "$chroot_dir/etc/network/if-up.d/show-ip-addresses"
 
     log "Installing additional packages: grub and Linux kernel"
     LANG=C DEBIAN_FRONTEND=noninteractive chroot "$chroot_dir" \
