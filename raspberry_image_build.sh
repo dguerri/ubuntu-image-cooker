@@ -20,12 +20,12 @@ set -u
 
 # --[ You may want to tweak these ]-------------------------------------------
 USER="ubuntu"
-USER_SSHKEY="ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCe5Y4UD861L62QApdGrRbhVEx\
-S1V3RgGlnRXPYTEIraoQPzBdbhn3OU9q3FRRvIdYgM2LFaYe8ClTqENM0BUHq8DeEm9wiQVu0+TW\
-z8KIGoDJEjUpaFsKrIrtC3uP7lqyJYzzUR0nyJxL00Uf1otXTcJ+9d4RIbNtu370ooLoQZN6LaYN\
-/54NKqiRJ0DXtzY+2iTc2U/ptgfN1YQMizpjjwz2k57JX7UlxnLT3jVFOBF6wu9jT+HEaCDbFbOS\
-DYiziqEz52qvhBRhqrr87nrzSkilv+JHigLMgLmrBuWavCXqdzl7PmNKqfWkj1lI5KlxcA+UHZDJ\
-tpIBrblHa91p5 davide@murray.local"
+USER_SSHKEY="ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEAqAtpzgyWnVn+Kd6D904BEcwURTUm\
++iYW/URhjPBay2oKxpf6KgLsKOg27cpHd8cFVgAv5K7zlwTarbUfWHhHPQY/mbR9W1uhGpFs51sFQ\
+s+wGua6SPFHPDrcgpWSSrKeqIgCXgSC0ixDeqgIymT058MN1HoOSOxkpGAYWO/dgxq+C8jlydlLBW\
+LGDVgkodrVephFsTZ5Rs8V92U1fUb4UjSy4NJBLA6NE/YK0Dls83FZXuXXdlNPjmXPRjWO/XDA+LC\
+9D9UheFEX3zzThkWigcFB/YvqNr9lHBA174Tj0/QXoVYlkSv1q81wMGPdw3UPUhwjEastihB+XN/J\
+3BGtOw== Default"
 # --[ Less likely you will need to tweak these ]------------------------------
 ARCH="armhf"
 COMPONENTS=( main restricted universe multiverse )
