@@ -14,8 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-set -e
-set -u
+set -eu
 
 
 # --[ You may want to tweak these ]-------------------------------------------
@@ -31,7 +30,7 @@ ARCH="armhf"
 COMPONENTS=( main restricted universe multiverse )
 DEBOOTSTRAP="qemu-debootstrap --arch $ARCH"
 EXTRA_PACKAGES=( openssh-server vim avahi-daemon bridge-utils curl gcc make
-                 software-properties-common ubuntu-keyring )
+                 software-properties-common ubuntu-keyring expect)
 IMAGE_DEVICE="/dev/loop0"
 INITIAL_SIZE_GB="2"
 NIC_LIST=( eth0 )
@@ -205,6 +204,15 @@ auto $nic
 iface $nic inet dhcp
 EOF
     done
+
+    log "Giving a personal touch..."
+    cp "$SCRIPT_DIR/extras/rpi-resizefs.expect" \
+        "$chroot_dir/root/"
+    chmod +x "$chroot_dir/root/rpi-resizefs.expect"
+
+    cp "$SCRIPT_DIR/extras/rpi-install_docker.sh" \
+        "$chroot_dir/root/"
+    chmod +x "$chroot_dir/root/rpi-install_docker.sh"
 
     log "Installing Raspberry Pi PPA"
     # Install the RPi PPA
