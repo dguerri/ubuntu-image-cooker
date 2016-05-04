@@ -1,3 +1,12 @@
+Prerequisites
+=============
+
+You need the following packages:
+
+    sudo apt-get install -y qemu-utils apt-cacher-ng build-essential less rsync lzop u-boot-tools git debhelper bc device-tree-compiler parted
+
+expecially, ` apt-cacher-ng` :)
+
 Cloud Images
 ============
 
